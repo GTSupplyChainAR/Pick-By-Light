@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-#to do: - get rid of key error for carts; try to minimze sleep while getting all bits; make stop time for each; finish timer
-
 
 import re
 import time
 import json
 from sys import argv
 from socket import *
-from time import sleep, clock, time
-from random import choice, randint
+from time import sleep
+from random import choice
 
 """Networking setup"""
 sockhub = socket(AF_INET, SOCK_DGRAM) # UDP
@@ -21,15 +19,10 @@ leftdisplay={'0':16128,'1':1536,'2':23296,'3':20224,'4':26112,'5':27904,'6':3200
 outputCarts = {0: 'C11', 1: 'C12', 2: 'C13'}
 
 """Default pick path"""
-pp = {"A11": 88, "A12": 88, "A13": 88, "A21": 88, "A22": 88, "A23": 88, "A31": 88, "A32": 88, "A33": 88, "A41": 88, 
-"A42": 88, "A43": 88, "B11": 88, "B12": 88, "B13": 88, "B21": 88, "B22": 88, "B23": 88, "B31": 88, "B32": 88, 
-"B33": 88, "B41": 88, "B42": 88, "B43": 88}
-
-"""Carts list"""
-carts = ["C11", "C12", "C13"]
+pp = {"A11": 1, "A12": 2, "A13": 3, "A21": 4, "A22": 5, "A23": 6, "A31": 7, "A32": 8, "A33": 9, "A41": 10, "A42": 11, "A43": 12, "B11": 1, "B12": 2, "B13": 3, "B21": 4, "B22": 5, "B23": 6, "B31": 7, "B32": 8, "B33": 9, "B41": 10, "B42": 11, "B43": 12}
 
 '''----------------------------Change A Single Display ----------------------------------
-    inputs: display is format <section><row><column>, where rack is [A,B] and 
+    inputs: display is format <section><row><column>, where column is [A,B] and 
             row is [1-4] and column is [1-3] (ex. 'A21')
             pattern is the integer value you want to display (0-100, where 100=off)
     ----------------------------------------------------------------------------------'''
@@ -40,14 +33,14 @@ def ChangeDisplay(sockcntrl,display,number, setup):
     # number = NumberConvert(number, setup)
     message = message1+display+message2+str(number)+message3
     message = message.encode('utf-8')
-    #print(message)
+    print(message)
     return sockcntrl.sendto(message,('192.168.2.255',3865))
 
 
 ''' -----------------------Convert Number to Display Equivalent---------------------------
     Converts number to correct display value
     ----------------------------------------------------------------------------------'''
-def NumberConvert(number, setup=True):
+def NumberConvert(number, setup):
     onesdigit = number % 10
     number //= 10
     tensdigit = number % 10
@@ -67,7 +60,7 @@ def reset():
     dispNum = NumberConvert(0, True)
     ChangeDisplay(sockhub, '*', dispNum, False)
 
-"""Resets a specific display"""
+"""Resets """
 def resetDisplay(display):
     dispNum = NumberConvert(0, True)
     ChangeDisplay(sockhub, display, dispNum, False)
@@ -78,7 +71,7 @@ def loadPickpath(pickpath):
     for k, v in pickpath.items():
         dispPickpath[k] = NumberConvert(int(v), True)
         ChangeDisplay(sockhub, k, dispPickpath[k], True)
-        sleep(.13)
+        sleep(.15)
 
 """Cycle through every pixel in cell to test cell"""
 def testCell(display):
@@ -87,30 +80,29 @@ def testCell(display):
             ChangeDisplay(sockhub, display, 2**i, False)
             sleep(.05)
 
-def generatePickpath(pickPathLength=5):
+def generatePickpath():
     pp = {}
-    shelfPopulation = ['A11', 'A12', 'A13', 'A21', 'A22', 'A23', 'A31', 'A32',
-    'A33', 'A41', 'A42', 'A43', 'B11', 'B12', 'B13', 'B21', 'B22', 'B23',
-    'B31', 'B32', 'B33', 'B41', 'B42', 'B43'];
-    for shelf in shelfPopulation:
-        pp[shelf] = 0
-    while pickPathLength > 0:
+    numShelves = 3
+    #shelfPopulation = pp.keys()
+    shelfPopulation = ['A11', 'A12', 'A13', 'A21', 'A22', 'A23', 'A31', 'A32', 'A33', 'A41', 'A42', 'A43']
+    total = 6
+    while total > 0:
         shelf = choice(shelfPopulation)
         if shelf in pp.keys():
             pp[shelf] += 1
         else:
             pp[shelf] = 0
             pp[shelf] += 1
-        pickPathLength -= 1
+        total -= 1
     return pp
 
 def cartButtonPress():
     while True: #always checking for signals
         for shelf in ["C11", "C12", "C13"]:
-            pickPathLength = 5
-            while pickPathLength > 0:
+            total = 5
+            while total > 0:
                 data,address = sockhub.recvfrom(4096)
-                #print(data)
+                print(data)
                 if data and "hbeat".encode("utf-8") not in data:
                     if "HIGH".encode('utf-8') in data:
                         ChangeDisplay(sockhub, shelf, "125", False)
@@ -120,72 +112,44 @@ def cartButtonPress():
                         ChangeDisplay(sockhub, display.decode("utf-8"), dispNum, False)
                         dispTotal = NumberConvert(total, True)
                         ChangeDisplay(sockhub, shelf, dispTotal, False)
-                        pickPathLength -= 1
+                        total -= 1
                 if all(v == 0 for v in pickpath.values()):
                     reset()
                     pickpath = generatePickpath() # generates a randomly generated pickpath
-                    pickPathLength+= 1
+                    total += 1
                     loadPickpath(pickpath) # loads the default pick path
 
+
 def main():
-    reset()
-    f = open('tasks', 'a')
+    loadPickpath(pp)
 
-    while True:
-        for currentCart in carts:
+    # reset() # resets all display cells
+    # pickpath = generatePickpath() # generates a randomly generated pickpath
+    # loadPickpath(pickpath) # loads the default pick path
+    # testCell("A32") # toggles individual pixels in a cell
+    # resetDisplay("A32") # resets the cell display
 
-            pickPathLength = randint(4,6)
-            pickpath = generatePickpath(pickPathLength)
 
-            previousCart = carts[carts.index(currentCart) - 1]
-            ChangeDisplay(sockhub, currentCart, 47375, False)
-
-            startButtonPush = False
-            ChangeDisplay(sockhub, currentCart, 47375, False)
-            while not startButtonPush:
-                data,address = sockhub.recvfrom(4096)
-                #print(data)
-                if data and "hbeat".encode("utf-8") not in data:
-                        if ("HIGH".encode('utf-8') in data) or ("LOW".encode('utf-8') in data):
-                            display = re.findall('[ABC]\d{2}'.encode("utf-8"),data)[0] # get which button was pressed as usable string
-                            #print(display)
-                            if (display.decode("utf-8") == currentCart):
-                                #startTime = time.time()
-                                #f.write(str(startTime))
-                                #print("Cart " + currentCart + " Start Time: " + str(startTime))
-                                dispPickPathLength = NumberConvert(pickPathLength, True)
-                                ChangeDisplay(sockhub, currentCart, dispPickPathLength, False)
-                                startButtonPush = True
-
-            loadPickpath(pickpath)
-            f.write(str(pickpath) + "\n" + "\n")
-
-            while pickPathLength > 0:
-                data,address = sockhub.recvfrom(4096)
-                if data and "hbeat".encode("utf-8") not in data:
-                    if "HIGH".encode('utf-8') in data:
-                        display = re.findall('[ABC]\d{2}'.encode("utf-8"),data)[0] # get which button was pressed as usable string
-                        displayStr = display.decode("utf-8")
-                        if (displayStr not in carts and pickpath[displayStr] != 0):
-                            pickPathLength -= pickpath[displayStr]
-                            pickpath[displayStr] = 0
-                        else:
-                            continue
-                        
-                        dispNum = NumberConvert(pickpath[displayStr], True)
-                        ChangeDisplay(sockhub, displayStr, dispNum, False)
-                        dispTotal = NumberConvert(pickPathLength, True)
-                        ChangeDisplay(sockhub,  currentCart, dispTotal, False)
-            
-            ChangeDisplay(sockhub,  currentCart, 63, False)
-            sleep(0.7)
-
-        #taskTime = time.time()
-        #f.write(str(taskTime))
-        #print("Total Task Time: " + str(taskTime))
-
-    f.close()
-
+    
+    # # cartButtonPress()
+    # while True: #always checking for signals
+    #     data,address = sockhub.recvfrom(4096)
+    #     print(data)
+    #     if data and "hbeat".encode("utf-8") not in data:
+    #         if "HIGH".encode('utf-8') in data:
+    #             ChangeDisplay(sockhub, shelf, "125", False)
+    #             display = re.findall('[ABC]\d{2}'.encode("utf-8"),data)[0] # get which button was pressed as usable string
+    #             pickpath[display.decode("utf-8")] -= 1    
+    #             dispNum = NumberConvert(pickpath[display.decode("utf-8")], True)
+    #             ChangeDisplay(sockhub, display.decode("utf-8"), dispNum, False)
+    #             dispTotal = NumberConvert(total, True)
+    #             ChangeDisplay(sockhub, shelf, dispTotal, False)
+    #             total -= 1
+    #     if all(v == 0 for v in pickpath.values()):
+    #         reset()
+    #         pickpath = generatePickpath() # generates a randomly generated pickpath
+    #         total += 1
+    #         loadPickpath(pickpath) # loads the default pick path
 
 if __name__ == '__main__':
     main()
